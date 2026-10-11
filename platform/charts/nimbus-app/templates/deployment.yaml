@@ -1,0 +1,73 @@
+{{- $c := include "nimbus.config" . | fromYaml -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $c.name }}
+  labels:
+    {{- include "nimbus.labels" (dict "c" $c "root" $) | nindent 4 }}
+spec:
+  replicas: {{ $c.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "nimbus.selectorLabels" $c | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "nimbus.labels" (dict "c" $c "root" $) | nindent 8 }}
+        {{- /* Una etiqueta por cada app destino: las NetworkPolicies del
+               destino solo aceptan tráfico de pods que la lleven */}}
+        {{- range $c.talksTo }}
+        nimbus.io/to-{{ . }}: "true"
+        {{- end }}
+      annotations:
+        kubectl.kubernetes.io/default-container: app
+    spec:
+      serviceAccountName: {{ $c.name }}
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: "{{ $c.image.repository }}:{{ $c.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: {{ $c.port }}
+          env:
+            - name: APP_NAME
+              value: {{ $c.name | quote }}
+            - name: NIMBUS_ENV
+              value: {{ .Values.environment | default "local" | quote }}
+            - name: PORT
+              value: {{ $c.port | quote }}
+            {{- /* Descubrimiento de servicios: una URL por cada destino */}}
+            {{- range $c.talksTo }}
+            - name: NIMBUS_{{ . | upper | replace "-" "_" }}_URL
+              value: "http://{{ . }}"
+            {{- end }}
+            {{- range $key, $value := $c.env }}
+            - name: {{ $key }}
+              value: {{ $value | toString | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ $c.healthPath }}
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: {{ $c.healthPath }}
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- include "nimbus.resources" $c.size | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]

@@ -1,0 +1,21 @@
+{{- /* Solo se crea si el clúster tiene Prometheus Operator instalado */ -}}
+{{- $c := include "nimbus.config" . | fromYaml -}}
+{{- if and $c.metrics.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $c.name }}
+  labels:
+    {{- include "nimbus.labels" (dict "c" $c "root" $) | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "nimbus.selectorLabels" $c | nindent 6 }}
+  endpoints:
+    - port: http
+      path: {{ $c.metrics.path }}
+      interval: 15s
+      relabelings:
+        - targetLabel: environment
+          replacement: {{ .Values.environment | default "local" }}
+{{- end }}

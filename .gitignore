@@ -1,0 +1,10 @@
+# Certificados y estado local de la plataforma (nunca a Git)
+.nimbus/
+
+# Guía personal de estudio (no es para el repositorio público)
+docs/GUIA-PERSONAL.md
+
+__pycache__/
+*.pyc
+.vscode/
+.idea/

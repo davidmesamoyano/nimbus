@@ -1,0 +1,4 @@
+# Forzar finales de línea LF (los scripts .sh fallan con CRLF en Git Bash)
+* text=auto eol=lf
+*.png binary
+*.gif binary

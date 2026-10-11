@@ -1,0 +1,22 @@
+{{- $c := include "nimbus.config" . | fromYaml -}}
+{{- if $c.expose.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $c.name }}
+  labels:
+    {{- include "nimbus.labels" (dict "c" $c "root" $) | nindent 4 }}
+spec:
+  ingressClassName: {{ $c.platform.ingressClassName }}
+  rules:
+    - host: {{ $c.expose.host | default (printf "%s.localhost" $c.name) }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $c.name }}
+                port:
+                  name: http
+{{- end }}

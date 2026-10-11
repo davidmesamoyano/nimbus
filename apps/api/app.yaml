@@ -1,0 +1,23 @@
+# ───────────────────────────────────────────────────────────────
+#  Esto es TODO lo que un desarrollador escribe para desplegar su app.
+#  La plataforma se encarga del resto (build, despliegue, red, mTLS,
+#  métricas). Formato completo: platform/charts/nimbus-app/values.schema.json
+# ───────────────────────────────────────────────────────────────
+name: api
+image:
+  repository: ghcr.io/davidmesamoyano/nimbus-demo-app
+port: 8080
+replicas: 1
+size: small
+talksTo: []          # api no necesita llamar a nadie
+env:
+  MESSAGE: "Precios actualizados desde la API"
+
+environments:
+  dev:
+    image:
+      tag: "local" # nimbus:dev-tag
+  prod:
+    replicas: 2
+    image:
+      tag: "local" # nimbus:prod-tag

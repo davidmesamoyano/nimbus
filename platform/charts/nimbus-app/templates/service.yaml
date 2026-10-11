@@ -1,0 +1,38 @@
+{{- $c := include "nimbus.config" . | fromYaml -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $c.name }}
+  labels:
+    {{- include "nimbus.labels" (dict "c" $c "root" $) | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $c.name }}
+  labels:
+    {{- include "nimbus.labels" (dict "c" $c "root" $) | nindent 4 }}
+spec:
+  selector:
+    {{- include "nimbus.selectorLabels" $c | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+{{- if gt (int $c.replicas) 1 }}
+---
+# Con varias réplicas, garantiza que al menos una sigue viva durante
+# mantenimientos del clúster (drenado de nodos, actualizaciones...)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $c.name }}
+  labels:
+    {{- include "nimbus.labels" (dict "c" $c "root" $) | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "nimbus.selectorLabels" $c | nindent 6 }}
+{{- end }}

@@ -1,0 +1,89 @@
+{{- /*
+Zero trust: el namespace "apps" deniega todo el tráfico por defecto
+(platform/namespace/apps.yaml). Esta política abre SOLO lo que la app
+necesita según su app.yaml:
+
+  Entrada: desde las apps que la declaran en su talksTo, desde el Ingress
+           (si expose.enabled), desde Prometheus y desde Linkerd.
+  Salida:  DNS, el plano de control de Linkerd y las apps de su talksTo.
+*/ -}}
+{{- $c := include "nimbus.config" . | fromYaml -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $c.name }}
+  labels:
+    {{- include "nimbus.labels" (dict "c" $c "root" $) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "nimbus.selectorLabels" $c | nindent 6 }}
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    # Apps del mismo namespace que tienen a esta app en su talksTo
+    - from:
+        - podSelector:
+            matchLabels:
+              nimbus.io/to-{{ $c.name }}: "true"
+      ports:
+        - port: http
+        - port: 4143   # puerto de entrada del proxy de Linkerd
+    {{- if $c.expose.enabled }}
+    # Controlador de Ingress (Traefik en k3s)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $c.platform.ingressNamespace }}
+      ports:
+        - port: http
+        - port: 4143
+    {{- end }}
+    {{- if $c.metrics.enabled }}
+    # Prometheus recoge las métricas
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $c.platform.monitoringNamespace }}
+      ports:
+        - port: http
+        - port: 4143
+        - port: 4191   # métricas del proxy de Linkerd
+    {{- end }}
+    # Plano de control de Linkerd (comprobaciones del proxy)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $c.platform.linkerdNamespace }}
+      ports:
+        - port: 4191
+  egress:
+    # Resolución DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Linkerd: identidad (certificados mTLS), descubrimiento y políticas
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $c.platform.linkerdNamespace }}
+    {{- if $c.talksTo }}
+    # Solo las apps declaradas en talksTo
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: nimbus.io/app
+                operator: In
+                values:
+                  {{- range $c.talksTo }}
+                  - {{ . }}
+                  {{- end }}
+    {{- end }}

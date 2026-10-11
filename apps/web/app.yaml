@@ -1,0 +1,26 @@
+# ───────────────────────────────────────────────────────────────
+#  App "web": la parte pública. Llama a "api" y es la única que se
+#  expone fuera del clúster. Formato completo:
+#  platform/charts/nimbus-app/values.schema.json
+# ───────────────────────────────────────────────────────────────
+name: web
+image:
+  repository: ghcr.io/davidmesamoyano/nimbus-demo-app
+port: 8080
+replicas: 1
+size: small
+talksTo: [api]       # solo puede hablar con api; todo lo demás, bloqueado
+expose:
+  enabled: true      # accesible en http://web.localhost:<puerto del clúster>
+env:
+  MESSAGE: "Bienvenido a la tienda"
+  UPSTREAM_URL: "http://api"
+
+environments:
+  dev:
+    image:
+      tag: "local" # nimbus:dev-tag
+  prod:
+    replicas: 2
+    image:
+      tag: "local" # nimbus:prod-tag

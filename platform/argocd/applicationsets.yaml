@@ -1,0 +1,96 @@
+# ─────────────────────────────────────────────────────────────────────
+#  El corazón de la plataforma (GitOps).
+#
+#  Argo CD cruza dos listas:
+#    1. Clústeres registrados con la etiqueta nimbus.io/environment
+#       (nimbus-dev → dev, nimbus-prod → prod)
+#    2. Carpetas dentro de apps/ (una por app)
+#  y crea una Application por cada combinación. Añadir una app nueva es
+#  tan simple como crear apps/<nombre>/app.yaml y hacer git push.
+# ─────────────────────────────────────────────────────────────────────
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: nimbus-apps
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - clusters:
+              selector:
+                matchExpressions:
+                  - key: nimbus.io/environment
+                    operator: Exists
+          - git:
+              repoURL: https://github.com/davidmesamoyano/nimbus.git
+              revision: HEAD
+              directories:
+                - path: apps/*
+  template:
+    metadata:
+      name: '{{ .path.basename }}-{{ index .metadata.labels "nimbus.io/environment" }}'
+      labels:
+        nimbus.io/app: '{{ .path.basename }}'
+        nimbus.io/environment: '{{ index .metadata.labels "nimbus.io/environment" }}'
+    spec:
+      project: nimbus
+      source:
+        repoURL: https://github.com/davidmesamoyano/nimbus.git
+        targetRevision: HEAD
+        path: platform/charts/nimbus-app
+        helm:
+          releaseName: '{{ .path.basename }}'
+          # El app.yaml del desarrollador es el fichero de valores del chart
+          valueFiles:
+            - '../../../apps/{{ .path.basename }}/app.yaml'
+          parameters:
+            - name: environment
+              value: '{{ index .metadata.labels "nimbus.io/environment" }}'
+      destination:
+        server: '{{ .server }}'
+        namespace: apps
+      syncPolicy:
+        automated:
+          prune: true      # lo que se borra de Git se borra del clúster
+          selfHeal: true   # cambios manuales en el clúster se revierten
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 3m
+---
+# Base común de cada clúster: el namespace "apps" con Linkerd y default-deny
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: nimbus-base
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchExpressions:
+            - key: nimbus.io/environment
+              operator: Exists
+  template:
+    metadata:
+      name: 'base-{{ index .metadata.labels "nimbus.io/environment" }}'
+    spec:
+      project: nimbus
+      source:
+        repoURL: https://github.com/davidmesamoyano/nimbus.git
+        targetRevision: HEAD
+        path: platform/namespace
+      destination:
+        server: '{{ .server }}'
+        namespace: apps
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

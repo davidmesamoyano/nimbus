@@ -1,0 +1,37 @@
+# Valores por defecto de la plataforma.
+#
+# Los desarrolladores NO editan este fichero: escriben apps/<app>/app.yaml,
+# que se aplica encima de estos valores. El formato permitido está definido
+# (y se valida automáticamente) en values.schema.json.
+
+# Entorno de despliegue. Lo inyecta Argo CD según el clúster (dev / prod).
+environment: ""
+
+name: ""
+image:
+  repository: ""
+  tag: latest
+port: 8080
+replicas: 1
+# Tamaño de recursos predefinido: small | medium | large
+size: small
+healthPath: /healthz
+# Apps con las que esta app puede hablar. Todo lo demás está bloqueado.
+talksTo: []
+env: {}
+expose:
+  enabled: false
+  host: ""
+metrics:
+  enabled: true
+  path: /metrics
+
+# Ajustes por entorno; se superponen al resto cuando environment coincide.
+environments: {}
+
+# Parámetros de la propia plataforma (no del desarrollador)
+platform:
+  ingressClassName: traefik
+  ingressNamespace: kube-system
+  monitoringNamespace: monitoring
+  linkerdNamespace: linkerd

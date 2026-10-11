@@ -1,0 +1,12 @@
+apiVersion: v2
+name: nimbus-app
+description: >-
+  Chart genérico de la plataforma Nimbus. Convierte el app.yaml de un
+  desarrollador en todo lo que necesita una app en Kubernetes: Deployment,
+  Service, Ingress, NetworkPolicy (zero trust), ServiceMonitor y PDB.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: David Mesa Moyano
+    url: https://github.com/davidmesamoyano

@@ -1,0 +1,20 @@
+# Proyecto de Argo CD que acota qué puede desplegar la plataforma:
+# solo desde este repositorio y solo en los namespaces "apps".
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: nimbus
+  namespace: argocd
+spec:
+  description: Apps desplegadas a través de la plataforma Nimbus
+  sourceRepos:
+    - https://github.com/davidmesamoyano/nimbus.git
+  destinations:
+    - server: "*"
+      namespace: apps
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

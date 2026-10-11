@@ -1,0 +1,84 @@
+# Valida la plataforma y el catálogo de apps antes de que Argo CD los use:
+#   - cada app.yaml cumple el contrato (values.schema.json, vía helm lint)
+#   - los talksTo apuntan a apps que existen
+#   - los manifiestos generados son Kubernetes válido (kubeconform)
+# Así un error en un app.yaml se detecta en la Pull Request, no en el clúster.
+name: validar-plataforma
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/**", "platform/**", ".github/workflows/validar-plataforma.yml"]
+  pull_request:
+    paths: ["apps/**", "platform/**", ".github/workflows/validar-plataforma.yml"]
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    env:
+      CHART: platform/charts/nimbus-app
+      K8S_VERSION: 1.31.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Instalar kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Comprobar que cada talksTo apunta a una app existente
+        run: |
+          fallo=0
+          for f in apps/*/app.yaml; do
+            app=$(yq '.name' "$f")
+            if [ "$app" != "$(basename "$(dirname "$f")")" ]; then
+              echo "::error file=$f::El name ($app) debe coincidir con el nombre de la carpeta"
+              fallo=1
+            fi
+            for destino in $(yq '.talksTo[]' "$f"); do
+              if [ ! -f "apps/${destino}/app.yaml" ]; then
+                echo "::error file=$f::talksTo apunta a '${destino}', que no existe en apps/"
+                fallo=1
+              fi
+            done
+          done
+          exit $fallo
+
+      - name: Lint, render y validación por app y entorno
+        run: |
+          for f in apps/*/app.yaml; do
+            app=$(basename "$(dirname "$f")")
+            for envname in dev prod; do
+              echo "::group::${app} (${envname})"
+              helm lint "$CHART" -f "$f" --set environment="$envname" --strict
+              helm template "$app" "$CHART" -f "$f" --set environment="$envname" \
+                --api-versions monitoring.coreos.com/v1 \
+                | kubeconform -strict -summary -kubernetes-version "$K8S_VERSION" \
+                    -schema-location default \
+                    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+              echo "::endgroup::"
+            done
+          done
+
+      - name: Validar manifiestos de la plataforma
+        run: |
+          kubeconform -strict -summary -kubernetes-version "$K8S_VERSION" \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            platform/namespace platform/argocd platform/monitoring/grafana-dashboard.yaml
+
+      - name: Un app.yaml incorrecto debe ser rechazado
+        run: |
+          cat > /tmp/mala.yaml <<'EOF'
+          name: Nombre_Invalido
+          image: { repository: x }
+          replicas: 50
+          campoInventado: true
+          EOF
+          if helm lint "$CHART" -f /tmp/mala.yaml >/dev/null 2>&1; then
+            echo "::error::El esquema ha aceptado un app.yaml inválido"
+            exit 1
+          fi
+          echo "Correcto: la plataforma rechaza el app.yaml inválido"

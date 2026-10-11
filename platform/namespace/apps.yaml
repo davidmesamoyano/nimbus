@@ -1,0 +1,23 @@
+# Namespace donde viven todas las apps de la plataforma.
+#
+#  - linkerd.io/inject: enabled  → Linkerd añade un proxy a cada pod y
+#    cifra con mTLS toda la comunicación entre apps, sin tocar su código.
+#  - default-deny               → nadie habla con nadie salvo lo que
+#    abran las NetworkPolicies de cada app (generadas desde su talksTo).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apps
+  labels:
+    app.kubernetes.io/part-of: nimbus
+  annotations:
+    linkerd.io/inject: enabled
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: apps
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]

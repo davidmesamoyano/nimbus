@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Nimbus app.yaml",
+  "description": "Contrato entre los desarrolladores y la plataforma Nimbus. Helm rechaza cualquier app.yaml que no cumpla este esquema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "image"],
+  "definitions": {
+    "dnsName": {
+      "type": "string",
+      "pattern": "^[a-z]([-a-z0-9]{0,30}[a-z0-9])?$",
+      "description": "Nombre en minúsculas, números y guiones (máx. 32 caracteres)"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 }
+      }
+    },
+    "replicas": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "size": { "type": "string", "enum": ["small", "medium", "large"] },
+    "env": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
+      "additionalProperties": { "type": ["string", "number", "boolean"] }
+    },
+    "envOverride": {
+      "description": "Lo que se puede cambiar por entorno (dev / prod)",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "image": { "$ref": "#/definitions/image" },
+        "replicas": { "$ref": "#/definitions/replicas" },
+        "size": { "$ref": "#/definitions/size" },
+        "env": { "$ref": "#/definitions/env" }
+      }
+    }
+  },
+  "properties": {
+    "environment": { "type": "string", "enum": ["", "dev", "prod"] },
+    "name": { "$ref": "#/definitions/dnsName" },
+    "image": {
+      "allOf": [{ "$ref": "#/definitions/image" }],
+      "required": ["repository"]
+    },
+    "port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+    "replicas": { "$ref": "#/definitions/replicas" },
+    "size": { "$ref": "#/definitions/size" },
+    "healthPath": { "type": "string", "pattern": "^/" },
+    "talksTo": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/dnsName" }
+    },
+    "env": { "$ref": "#/definitions/env" },
+    "expose": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "host": { "type": "string" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "pattern": "^/" }
+      }
+    },
+    "environments": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dev": { "$ref": "#/definitions/envOverride" },
+        "prod": { "$ref": "#/definitions/envOverride" }
+      }
+    },
+    "platform": { "type": "object" },
+    "global": { "type": "object" }
+  }
+}

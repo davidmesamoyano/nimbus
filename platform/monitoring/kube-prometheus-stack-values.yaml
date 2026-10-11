@@ -1,0 +1,38 @@
+# Configuración ligera de kube-prometheus-stack para un portátil.
+# Solo lo necesario: Prometheus + Grafana + métricas del clúster.
+
+alertmanager:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    scrapeInterval: 15s
+    # Recoger los ServiceMonitor de cualquier namespace (los crea el chart
+    # de Nimbus en "apps"), no solo los que llevan la etiqueta de Helm
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 400Mi
+
+grafana:
+  adminPassword: nimbus   # solo para el laboratorio local
+  defaultDashboardsTimezone: Europe/Madrid
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL
+
+# k3s empaqueta estos componentes de forma distinta; se desactivan para
+# evitar alertas y objetivos caídos que no aportan nada en local
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
