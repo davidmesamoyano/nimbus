@@ -18,6 +18,6 @@ environments:
     image:
       tag: "local" # nimbus:dev-tag
   prod:
-    replicas: 2
+    replicas: 3
     image:
       tag: "local" # nimbus:prod-tag
